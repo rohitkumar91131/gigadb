@@ -1,69 +1,58 @@
-import { Outlet, Link } from "react-router-dom";
+import { Outlet, Link } from "react-router-dom"
 
 export default function AuthLayout() {
   return (
     <div className="min-h-screen w-full grid lg:grid-cols-2">
-      {/* Left Side - Visuals (Image spread across full height/width) */}
-      <div className="relative hidden lg:flex flex-col justify-between p-10 text-white ">
-        
-        {/* Background Image Layer */}
-        <div className="absolute inset-0 overflow-hidden">
-          <img 
-            src="/logo.png" 
-            alt="GigaDB Background" 
-            className="w-full h-full object-cover opacity-60" 
-          />
-          {/* Note: opacity-60 lagaya hai taaki text dikhe. 
-              Agar image dark hai to opacity hata sakte ho */}
+
+      <div className="relative hidden lg:flex flex-col justify-between p-12 text-white bg-black overflow-hidden">
+
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 via-black to-black" />
+
+        <div className="absolute inset-0 opacity-10 bg-[url('/noise.png')]" />
+
+        <div className="relative z-10 flex items-center gap-3">
+          <img src="/logo.png" className="w-10 h-10 object-contain" />
+          <span className="text-2xl font-bold tracking-wide">GigaDB</span>
         </div>
 
-        {/* Content Layer (Z-Index se upar rakha hai) */}
-        <div className="relative z-10 flex items-center gap-2 text-2xl font-bold">
-           {/* Agar logo icon bhi chahiye to yahan chhota img rakh sakte ho, warna sirf text */}
-           GigaDB
+        <div className="relative z-10 max-w-md">
+          <p className="text-3xl font-semibold leading-tight">
+            A database built for speed, scale, and serious engineering.
+          </p>
+
+          <p className="mt-4 text-zinc-400">
+            Index millions of records instantly.  
+            Built for engineers who hate slow systems.
+          </p>
         </div>
 
-        <div className="relative z-10">
-          <blockquote className="space-y-2">
-            <p className="text-lg">
-              &ldquo;This library has saved me countless hours of work and
-              helped me deliver stunning designs to my clients faster than
-              ever before.&rdquo;
-            </p>
-            <footer className="text-sm text-zinc-300">Sofia Davis</footer>
-          </blockquote>
+        <div className="relative z-10 text-sm text-zinc-500">
+          © 2026 GigaDB
         </div>
       </div>
 
-      {/* Right Side - The Forms */}
       <div className="flex flex-col items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-[400px] flex flex-col justify-center space-y-6">
-          
-          {/* Mobile Logo (Thoda bada kar diya hai) */}
-          <div className="flex lg:hidden items-center justify-center gap-2 text-2xl font-bold mb-8">
-            <img 
-              src="/logo.png" 
-              alt="GigaDB Logo" 
-              className="w-16 h-16 object-contain" 
-            />
-            <span>GigaDB</span>
+        <div className="w-full max-w-[420px] space-y-6">
+
+          <div className="flex lg:hidden justify-center items-center gap-3 mb-8">
+            <img src="/logo.png" className="w-12 h-12 object-contain" />
+            <span className="text-2xl font-bold">GigaDB</span>
           </div>
-          
+
           <Outlet />
-          
-          <p className="px-8 text-center text-sm text-muted-foreground">
-            By clicking continue, you agree to our{" "}
-            <Link to="/terms" className="underline underline-offset-4 hover:text-primary">
-              Terms of Service
+
+          <p className="text-center text-xs text-muted-foreground">
+            By continuing, you agree to our{" "}
+            <Link to="/terms" className="underline hover:text-primary">
+              Terms
             </Link>{" "}
             and{" "}
-            <Link to="/privacy" className="underline underline-offset-4 hover:text-primary">
+            <Link to="/privacy" className="underline hover:text-primary">
               Privacy Policy
             </Link>
-            .
           </p>
         </div>
       </div>
     </div>
-  );
+  )
 }

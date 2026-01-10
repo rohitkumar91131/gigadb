@@ -200,3 +200,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+.logo-glow {
+  filter: drop-shadow(0 0 12px rgba(59,130,246,0.6));
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 6px rgba(59,130,246,0.4));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 20px rgba(59,130,246,0.9));
+  }
+  100% {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 6px rgba(59,130,246,0.4));
+  }
+}
