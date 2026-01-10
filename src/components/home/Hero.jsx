@@ -9,7 +9,7 @@ export default function Hero() {
         
         {/* Badge */}
         <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-blue-100 text-blue-800 mb-8">
-          v2.0 is now live
+          v.0 is now live
         </div>
 
         {/* Main Heading */}

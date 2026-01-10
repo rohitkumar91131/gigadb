@@ -6,6 +6,7 @@ import SignupPage from "./pages/auth/SignupPage";
 import Home from "./pages/Home";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Dashboard from "./pages/Dashboard"; // <--- Import Dashboard
+import { Toaster } from "sonner";
 
 function App() {
   return (

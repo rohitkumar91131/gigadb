@@ -1,39 +1,81 @@
 import { useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Github, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner"; 
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate(); 
   const isLogout = searchParams.get("logout") === "true";
   const isReset = searchParams.get("password_reset") === "true";
+  
   const [loading, setLoading] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    email: "",
+    password: ""
+  });
 
-  const handleLogin = (e) => {
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    // --- PASSWORD RESET LOGIC (Simulated) ---
+    if (isReset) {
+        setTimeout(() => {
+            toast.success("Recovery link sent to your email!");
+            setLoading(false);
+        }, 1500);
+        return;
+    }
+
+    // --- MAIN LOGIN LOGIC ---
+    try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData),
+            credentials: "include"
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            toast.success(data.msg || "Login successful!");
+            toast.info("Redirecting to dashboard...");
+            setTimeout(() => {
+                navigate("/dashboard");
+            }, 1000);
+
+        } else {
+            toast.error(data.msg || "Login failed");
+            setLoading(false); 
+        }
+    } catch (error) {
+        console.error("Login error:", error);
+        toast.error("Network error. Backend server might be down.");
         setLoading(false);
-    }, 3000); 
+    }
   };
 
   return (
-    // "relative" class is important here to position the loader
     <Card className="border-none shadow-none relative overflow-hidden">
       
       {/* --- LOADING OVERLAY --- */}
-      {/* Jab loading true hoga, ye div pure card ke upar aa jayega */}
       {loading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm transition-all duration-300">
            <img 
              src="https://ezgif.com/save/ezgif-5a01c42cb9a9c573.gif" 
              alt="Loading..." 
-             className="w-24 h-24 object-contain" // Yahan size control karo (w-24 = 96px)
+             className="w-24 h-24 object-contain" 
            />
         </div>
       )}
@@ -59,13 +101,28 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="name@example.com" disabled={loading} required />
+            <Input 
+                id="email" 
+                type="email" 
+                placeholder="name@example.com" 
+                disabled={loading} 
+                required 
+                value={formData.email} 
+                onChange={handleChange}
+            />
           </div>
           
           {!isReset && (
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" disabled={loading} required />
+              <Input 
+                id="password" 
+                type="password" 
+                disabled={loading} 
+                required 
+                value={formData.password}
+                onChange={handleChange}
+            />
             </div>
           )}
 
