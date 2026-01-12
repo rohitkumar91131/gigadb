@@ -1,58 +1,73 @@
-import { createContext, useContext, useState, useMemo, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react"
 
-const DashboardContext = createContext();
+const DashboardContext = createContext()
 
 export function DashboardProvider({ children }) {
-  const [activeModel, setActiveModel] = useState("Users");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [pageData, setPageData] = useState([]);
+  const [activeModel, setActiveModel] = useState(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [pageData, setPageData] = useState([])
+  const [allModels, setAllModels] = useState([])
 
-  const allModels = ["Users", "Products", "Orders", "Transactions", "AuditLogs", "Settings", "Invoices"];
+  const fetchModels = useCallback(async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections`, {
+        credentials: "include"
+      })
+      const data = await res.json()
+      if (data.success) {
+        setAllModels(data.collections)
+        if (!activeModel && data.collections.length > 0) {
+          setActiveModel(data.collections[0])
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, [activeModel])
 
-  const filteredModels = allModels.filter((model) =>
-    model.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const fetchDbPage = useCallback(async (pageNumber = 1, pageSize = 10) => {
+  const fetchDbPage = useCallback(async (collectionName, page = 1, limit = 10) => {
+    //alert(import.meta.env.VITE_BACKEND_URL)
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/db?pageNumber=${pageNumber}&pageSize=${pageSize}`
-      );
-      const data = await res.json();
+        `${import.meta.env.VITE_BACKEND_URL}/db?pageNumber=${1}&pageSize=${limit}`,
 
-      if (!data.success) {
-        alert(data.msg || "Failed to fetch data");
-        return;
+        { credentials: "include" }
+      )
+      const data = await res.json()
+      if (data.success) {
+        setPageData(data.users)
       }
-
-      setPageData(data.users);
-      return data;
-    } catch (err) {
-      return { success: false, msg: err.message };
+    } catch (e) {
+      console.error(e)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchDbPage(1, 10);
-  }, [fetchDbPage]);
+    fetchModels()
+  }, [])
 
-  const value = {
-    models: filteredModels,
-    activeModel,
-    setActiveModel,
-    searchQuery,
-    setSearchQuery,
-    pageData,
-    fetchDbPage,
-  };
+  const filteredModels = useMemo(() => {
+    return allModels.filter(m =>
+      m.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [allModels, searchQuery])
 
   return (
-    <DashboardContext.Provider value={value}>
+    <DashboardContext.Provider value={{
+      models: filteredModels,
+      activeModel,
+      setActiveModel,
+      searchQuery,
+      setSearchQuery,
+      pageData,
+      fetchDbPage,
+      fetchModels
+    }}>
       {children}
     </DashboardContext.Provider>
-  );
+  )
 }
 
 export function useDashboard() {
-  return useContext(DashboardContext);
+  return useContext(DashboardContext)
 }
