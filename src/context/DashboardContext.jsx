@@ -3,34 +3,47 @@ import { createContext, useContext, useState, useCallback, useEffect, useMemo } 
 const DashboardContext = createContext()
 
 export function DashboardProvider({ children }) {
-  const [activeModel, setActiveModel] = useState(null)
+  const [activeCollection, setActiveCollection] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [pageData, setPageData] = useState([])
-  const [allModels, setAllModels] = useState([])
+  const [collections, setCollections] = useState([])
+  
+  // Loading States
+  const [loadingCollections, setLoadingCollections] = useState(true)
+  const [loadingDocs, setLoadingDocs] = useState(false)
 
-  const fetchModels = useCallback(async () => {
+  // Pagination Config
+  const [pageSize, setPageSize] = useState(10)
+
+  // 1. Fetch All Collections
+  const fetchCollections = useCallback(async () => {
     try {
+      setLoadingCollections(true)
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections`, {
         credentials: "include"
       })
       const data = await res.json()
       if (data.success) {
-        setAllModels(data.collections)
-        if (!activeModel && data.collections.length > 0) {
-          setActiveModel(data.collections[0])
-        }
+        setCollections(data.collections)
+        // Note: We do NOT auto-select a collection so the Grid View shows first
       }
     } catch (e) {
       console.error(e)
+    } finally {
+      setLoadingCollections(false)
     }
-  }, [activeModel])
+  }, [])
 
-  const fetchDbPage = useCallback(async (collectionName, page = 1, limit = 10) => {
-    //alert(import.meta.env.VITE_BACKEND_URL)
+  // 2. Fetch Documents (Page Data)
+  const fetchDbPage = useCallback(async (page = 1, limitOverride = null) => {
+    if (!activeCollection) return 
+
+    const limit = limitOverride || pageSize
+    
     try {
+      setLoadingDocs(true)
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/db?pageNumber=${1}&pageSize=${limit}`,
-
+        `${import.meta.env.VITE_BACKEND_URL}/db?pageNumber=${page}&pageSize=${limit}`,
         { credentials: "include" }
       )
       const data = await res.json()
@@ -39,29 +52,90 @@ export function DashboardProvider({ children }) {
       }
     } catch (e) {
       console.error(e)
+    } finally {
+      setLoadingDocs(false)
     }
-  }, [])
+  }, [activeCollection, pageSize])
 
+  // 3. Create New Collection
+  const createCollection = useCallback(async (name) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name })
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        await fetchCollections() 
+        return { success: true }
+      } else {
+        return { success: false, msg: data.msg }
+      }
+    } catch (e) {
+      console.error(e)
+      return { success: false, msg: "Network error" }
+    }
+  }, [fetchCollections])
+
+  // 4. Add Record to Collection
+  const addRecord = useCallback(async (payloadData) => {
+    if (!activeCollection) return { success: false, msg: "No active collection" }
+
+    try {
+      const response = await fetch("/db/collections/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collectionName: activeCollection.name,
+          data: payloadData,
+        }),
+        credentials: "include",
+      })
+
+      if (response.ok) {
+        await fetchDbPage(1) // Refresh to first page
+        return { success: true }
+      } else {
+        const err = await response.json()
+        return { success: false, msg: err.message || "Unknown error" }
+      }
+    } catch (error) {
+      console.error("Submission error", error)
+      return { success: false, msg: "Something went wrong." }
+    }
+  }, [activeCollection, fetchDbPage])
+
+  // Initial Load
   useEffect(() => {
-    fetchModels()
+    fetchCollections()
   }, [])
 
-  const filteredModels = useMemo(() => {
-    return allModels.filter(m =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Search Filter Logic
+  const filteredCollections = useMemo(() => {
+    return collections.filter(c =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
-  }, [allModels, searchQuery])
+  }, [collections, searchQuery])
 
   return (
     <DashboardContext.Provider value={{
-      models: filteredModels,
-      activeModel,
-      setActiveModel,
+      collections: filteredCollections,
+      activeCollection,
+      setActiveCollection,
       searchQuery,
       setSearchQuery,
       pageData,
       fetchDbPage,
-      fetchModels
+      fetchCollections,
+      createCollection,
+      addRecord,
+      loadingCollections,
+      loadingDocs,
+      pageSize,
+      setPageSize
     }}>
       {children}
     </DashboardContext.Provider>

@@ -3,61 +3,57 @@ import { Table, Database, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton" 
 import { useDashboard } from "@/context/DashboardContext"
 import { useVirtualizer } from "@tanstack/react-virtual"
 
-export default function ModelSidebar() {
-  const { models, activeModel, setActiveModel, searchQuery, setSearchQuery, fetchDbPage , fetchModels} = useDashboard()
+export default function CollectionSidebar() {
+  const { 
+    collections, 
+    activeCollection, 
+    setActiveCollection, 
+    searchQuery, 
+    setSearchQuery, 
+    fetchDbPage,
+    createCollection,
+    loadingCollections
+  } = useDashboard()
 
   const [showModal, setShowModal] = useState(false)
-  const [modelName, setModelName] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [collectionName, setCollectionName] = useState("")
+  const [creating, setCreating] = useState(false)
 
+  // Fetch page data whenever active collection changes
   useEffect(() => {
-    fetchDbPage();
-    fetchModels()
-  }, [])
+    if (activeCollection) {
+      fetchDbPage(1)
+    }
+  }, [activeCollection])
 
   const parentRef = useRef(null)
 
   const rowVirtualizer = useVirtualizer({
-    count: models.length,
+    count: collections.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 44,
     overscan: 5,
   })
 
-  async function submitModel() {
-    if (!modelName.trim()) return alert("Collection name required")
+  async function handleSubmit() {
+    if (!collectionName.trim()) return alert("Collection name required")
 
     try {
-      setLoading(true)
+      setCreating(true)
+      const result = await createCollection(collectionName)
 
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
-        body: JSON.stringify({ name: modelName })
-      })
-
-      const data = await res.json()
-
-      if (!data.success) {
-        alert(data.msg || "Failed")
-        return
+      if (result.success) {
+        setCollectionName("")
+        setShowModal(false)
+      } else {
+        alert(result.msg || "Failed to create collection")
       }
-
-      setModelName("")
-      setShowModal(false)
-      fetchDbPage()
-    }
-    catch (err) {
-      alert(err.message)
-    }
-    finally {
-      setLoading(false)
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -65,6 +61,7 @@ export default function ModelSidebar() {
     <div className="hidden border-r bg-muted/10 md:block w-64 h-full flex flex-col">
       <div className="flex flex-col h-full py-4">
 
+        {/* Header */}
         <div className="px-6 mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
@@ -79,6 +76,7 @@ export default function ModelSidebar() {
           </Button>
         </div>
 
+        {/* Search */}
         <div className="px-4 mb-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -93,39 +91,62 @@ export default function ModelSidebar() {
 
         <Separator className="my-2" />
 
+        {/* List Area */}
         <div ref={parentRef} className="flex-1 overflow-y-auto px-2">
-          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
-            {rowVirtualizer.getVirtualItems().map(v => {
-              const model = models[v.index]
-              const isActive = activeModel?.id === model.id
-
-              return (
-                <div
-                  key={v.key}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${v.size}px`,
-                    transform: `translateY(${v.start}px)`
-                  }}
-                >
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => setActiveModel(model)}
-                  >
-                    <Table className="mr-2 h-4 w-4" />
-                    {model.name}
-                  </Button>
+          {loadingCollections ? (
+            // --- SKELETON LOADING ---
+            <div className="space-y-2 pt-2 px-1">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-2 py-2">
+                  <Skeleton className="h-4 w-4 rounded-sm" />
+                  <Skeleton className="h-4 w-full rounded-md" />
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            // --- VIRTUALIZED LIST ---
+            <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
+              {rowVirtualizer.getVirtualItems().map(v => {
+                const collection = collections[v.index]
+                if (!collection) return null
+
+                const isActive = activeCollection?.id === collection.id
+
+                return (
+                  <div
+                    key={collection.id}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: `${v.size}px`,
+                      transform: `translateY(${v.start}px)`
+                    }}
+                  >
+                    <Button
+                      variant={isActive ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => setActiveCollection(collection)}
+                    >
+                      <Table className="mr-2 h-4 w-4" />
+                      {collection.name}
+                    </Button>
+                  </div>
+                )
+              })}
+              
+              {!loadingCollections && collections.length === 0 && (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  No collections found.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Create Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
@@ -140,12 +161,12 @@ export default function ModelSidebar() {
 
             <Input
               placeholder="Collection name"
-              value={modelName}
-              onChange={e => setModelName(e.target.value)}
+              value={collectionName}
+              onChange={e => setCollectionName(e.target.value)}
             />
 
-            <Button className="w-full mt-4" onClick={submitModel} disabled={loading}>
-              {loading ? "Creating..." : "Create"}
+            <Button className="w-full mt-4" onClick={handleSubmit} disabled={creating}>
+              {creating ? "Creating..." : "Create"}
             </Button>
           </div>
         </div>

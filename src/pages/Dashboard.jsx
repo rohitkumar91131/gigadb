@@ -1,8 +1,9 @@
 import { DashboardProvider } from "@/context/DashboardContext";
 import { useParams } from "react-router-dom";
 import DashboardHeader from "./dashboard/DashboardHeader";
-import ModelSidebar from "./dashboard/ModelSidebar";
-import ModelContent from "./dashboard/ModelContent";
+import CollectionContent from "./dashboard/ModelContent";
+import CollectionSidebar from "./dashboard/ModelSidebar";
+
 
 
 export default function Dashboard() {
@@ -21,13 +22,13 @@ export default function Dashboard() {
         {/* --- Area 2: Sidebar (Hidden on mobile, Fixed on Desktop) --- */}
         {/* overflow-y-auto yahan lagaya hai taki sirf sidebar scroll ho */}
         <div className="hidden md:block border-r bg-muted/10 overflow-y-auto overflow-x-hidden">
-          <ModelSidebar />
+          < CollectionSidebar/>
         </div>
 
         {/* --- Area 3: Main Content --- */}
         {/* overflow-y-auto yahan lagaya hai taki sirf content scroll ho */}
         <div className="overflow-y-auto bg-muted/20">
-          <ModelContent />
+          <CollectionContent />
         </div>
         
       </div>

@@ -1,194 +1,380 @@
-import { useMemo } from "react";
-import { MoreHorizontal, FilePlus2, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { useMemo, useState, useRef, useEffect } from "react"
+import { 
+  FilePlus2, ChevronLeft, ChevronRight, Plus, 
+  Trash2, Code, ListPlus, Loader2, Database, ArrowRight,
+  Copy, Pencil, MoreVertical
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useDashboard } from "@/context/DashboardContext";
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useDashboard } from "@/context/DashboardContext"
+import { useVirtualizer } from "@tanstack/react-virtual" // --- NEW IMPORT ---
 
-import {
-  useReactTable,
-  getCoreRowModel,
-  getPaginationRowModel,
-} from "@tanstack/react-table";
+// --- HELPER COMPONENT: JSON Render (Atlas Style) ---
+const JsonValue = ({ value }) => {
+  if (value === null) return <span className="text-zinc-400 italic">null</span>
+  if (typeof value === "boolean") return <span className="text-yellow-600 font-bold">{value.toString()}</span>
+  if (typeof value === "number") return <span className="text-blue-600">{value}</span>
+  if (typeof value === "string") return <span className="text-green-600">"{value}"</span>
+  if (Array.isArray(value)) return <span className="text-zinc-600">[ Array({value.length}) ]</span>
+  if (typeof value === "object") return <span className="text-zinc-600">{`{ Object }`}</span>
+  return <span>{String(value)}</span>
+}
 
-export default function ModelContent() {
-  const { activeModel, pageData, models, setActiveModel, fetchDbPage } = useDashboard();
+const DocumentCard = ({ data, index }) => {
+  let doc = data
+  try {
+    if (typeof data === "string") doc = JSON.parse(data)
+  } catch (e) {
+    // ignore
+  }
 
-  const columns = useMemo(
-    () => [
-      { accessorKey: "id", header: "ID" },
-      { accessorKey: "col1", header: "Name/Item" },
-      { accessorKey: "col2", header: "Detail" },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: (info) => (
-          <Badge variant="outline" className="text-xs">
-            {info.getValue()}
-          </Badge>
-        ),
-      },
-      {
-        id: "actions",
-        header: "Actions",
-        cell: () => (
-          <div className="text-right">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Edit</DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ),
-      },
-    ],
-    []
-  );
-
-  const table = useReactTable({
-    data: pageData,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: { pageSize: 10 },
-    },
-  });
-
-  const prettyData = useMemo(() => {
-    return pageData.map((row) => {
-      try {
-        return typeof row === "string" ? JSON.parse(row) : row;
-      } catch {
-        return row;
-      }
-    });
-  }, [pageData]);
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(JSON.stringify(doc, null, 2))
+    alert("Document copied!")
+  }
 
   return (
-    <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-muted/20 h-full overflow-hidden">
-      {/* Mobile Selector */}
-      <div className="md:hidden">
-        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-          Current Collection
-        </label>
-        <Select value={activeModel} onValueChange={setActiveModel}>
-          <SelectTrigger className="w-full bg-background border-zinc-200">
-            <SelectValue placeholder="Select Collection" />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((model) => (
-              <SelectItem key={model} value={model}>
-                {model}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="group relative border rounded-md bg-white hover:border-blue-400 transition-all shadow-sm mb-3"> {/* mb-3 added inside virtual row */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-zinc-50/50 rounded-t-md">
+        <div className="text-xs font-mono text-zinc-500">
+          Document #{index + 1}
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyToClipboard} title="Copy JSON">
+            <Copy className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit">
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-600" title="Delete">
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight hidden md:block">
-            {activeModel}
-          </h1>
-          <h1 className="text-xl font-semibold tracking-tight md:hidden">
-            Records
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Total {pageData.length} records found
-          </p>
-        </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <FilePlus2 className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">Add Record</span>
-          <span className="sm:hidden">Add</span>
-        </Button>
-      </div>
-
-      {/* Mongo-style JSON Viewer */}
-      <div className="flex-1 rounded-md border bg-background shadow-sm overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-auto bg-zinc-950 p-4">
-          <pre className="text-zinc-100 text-sm whitespace-pre-wrap font-mono">
-            {JSON.stringify(prettyData, null, 2)}
-          </pre>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex items-center justify-between px-4 py-4 border-t bg-white">
-          <div className="flex items-center gap-2 flex-1">
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              Page {table.getState().pagination.pageIndex + 1}
+      <div className="p-3 font-mono text-sm overflow-x-auto">
+        {Object.entries(doc).map(([key, value]) => (
+          <div key={key} className="flex items-start hover:bg-zinc-50 py-0.5 px-1 rounded">
+            <span className="text-zinc-800 font-semibold min-w-[120px] max-w-[200px] truncate mr-2 select-none">
+              {key}:
             </span>
+            <span className="break-all whitespace-pre-wrap">
+              <JsonValue value={value} />
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">Go to:</span>
-              <Input
-                type="number"
-                min="1"
-                defaultValue={table.getState().pagination.pageIndex + 1}
-                onChange={(e) => {
-                  const page = e.target.value ? Number(e.target.value) - 1 : 0;
-                  table.setPageIndex(page);
-                  fetchDbPage(page + 1, 10);
-                }}
-                className="h-8 w-16"
-              />
+export default function CollectionContent() {
+  const { 
+    activeCollection, 
+    pageData, 
+    collections, 
+    setActiveCollection, 
+    fetchDbPage,
+    addRecord,
+    pageSize,
+    setPageSize,
+    loadingDocs,       
+    loadingCollections 
+  } = useDashboard()
+  
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [jsonInput, setJsonInput] = useState("{\n  \n}")
+  const [kvFields, setKvFields] = useState([{ key: "", value: "" }])
+  const [activeTab, setActiveTab] = useState("builder") 
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // --- VIRTUALIZATION SETUP ---
+  const parentRef = useRef(null)
+
+  const rowVirtualizer = useVirtualizer({
+    count: pageData.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 150, // Default estimate height per card
+    overscan: 5, // Keep 5 items rendered outside viewport for smoothness
+  })
+
+  // Reset scroll when page data changes
+  useEffect(() => {
+    if (parentRef.current) {
+      parentRef.current.scrollTo(0, 0)
+    }
+  }, [pageData])
+
+  // --- Handlers ---
+  const handlePageChange = (newPage) => {
+    if (newPage < 1) return
+    setCurrentPage(newPage)
+    fetchDbPage(newPage)
+  }
+
+  const addField = () => setKvFields([...kvFields, { key: "", value: "" }])
+  const removeField = (index) => {
+    const newFields = [...kvFields]; newFields.splice(index, 1); setKvFields(newFields)
+  }
+  const updateField = (index, field, val) => {
+    const newFields = [...kvFields]; newFields[index][field] = val; setKvFields(newFields)
+  }
+
+  const handleAddRecord = async () => {
+    if (!activeCollection) return
+    setIsSubmitting(true)
+    let payloadData = {}
+    try {
+      if (activeTab === "json") {
+        try { payloadData = JSON.parse(jsonInput) } catch (e) { alert("Invalid JSON"); setIsSubmitting(false); return }
+      } else {
+        payloadData = kvFields.reduce((acc, curr) => {
+          if (curr.key.trim()) acc[curr.key] = curr.value
+          return acc
+        }, {})
+      }
+      const result = await addRecord(payloadData)
+      if (result.success) {
+        setIsDialogOpen(false); setJsonInput("{\n  \n}"); setKvFields([{ key: "", value: "" }])
+      } else { alert("Error: " + result.msg) }
+    } catch (e) { alert("Error") } 
+    finally { setIsSubmitting(false) }
+  }
+
+  // ==================== VIEW 1: GRID VIEW (No Selection) ====================
+  if (!activeCollection) {
+    return (
+      <main className="flex flex-1 flex-col gap-6 p-8 bg-muted/20 h-full overflow-y-auto">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Select a collection to view or manage its records.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {/* SKELETON LOADING FOR GRID */}
+          {loadingCollections ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex flex-col justify-between rounded-xl border bg-card p-6 shadow-sm h-[180px]">
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                </div>
+                <Skeleton className="h-4 w-24 mt-4" />
+              </div>
+            ))
+          ) : (
+            <>
+              {collections.map((col) => (
+                <div 
+                  key={col.id} 
+                  onClick={() => setActiveCollection(col)}
+                  className="group relative flex flex-col justify-between rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md hover:border-blue-500/50 cursor-pointer"
+                >
+                  <div className="space-y-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                      <Database className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-semibold leading-none tracking-tight">{col.name}</h3>
+                    <p className="text-sm text-muted-foreground">ID: {col.id}</p>
+                  </div>
+                  <div className="mt-4 flex items-center text-sm font-medium text-blue-600 opacity-0 transition-opacity group-hover:opacity-100">
+                    View Records <ArrowRight className="ml-1 h-4 w-4" />
+                  </div>
+                </div>
+              ))}
+              {collections.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                  <Database className="h-10 w-10 mb-4 opacity-50" />
+                  <p>No collections found.</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+    )
+  }
+
+  // ==================== VIEW 2: ATLAS-STYLE DOCUMENT LIST ====================
+  return (
+    <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-muted/20 h-full overflow-hidden">
+      
+      {/* Top Header Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+             <Button variant="ghost" size="sm" className="h-6 px-2 -ml-2 text-muted-foreground hover:text-foreground" onClick={() => setActiveCollection(null)}>
+               <ChevronLeft className="h-4 w-4 mr-1" /> Back
+             </Button>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">{activeCollection?.name}</h1>
+          <p className="text-sm text-muted-foreground">Showing documents {((currentPage - 1) * pageSize) + 1} - {((currentPage - 1) * pageSize) + (pageData?.length || 0)}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="md:hidden w-40">
+            <Select value={activeCollection?.id || ""} onValueChange={id => { const c = collections.find(x => x.id === id); if(c) setActiveCollection(c) }}>
+              <SelectTrigger className="w-full bg-background"><SelectValue placeholder="Collection" /></SelectTrigger>
+              <SelectContent>{collections.map(col => (<SelectItem key={col.id} value={col.id}>{col.name}</SelectItem>))}</SelectContent>
+            </Select>
+          </div>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild><Button className="bg-blue-600 hover:bg-blue-700"><FilePlus2 className="mr-2 h-4 w-4" /> Insert Document</Button></DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader><DialogTitle>Insert Document</DialogTitle><DialogDescription>Add to <strong>{activeCollection?.name}</strong>.</DialogDescription></DialogHeader>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="builder"><ListPlus className="w-4 h-4 mr-2" /> Builder</TabsTrigger>
+                  <TabsTrigger value="json"><Code className="w-4 h-4 mr-2" /> JSON</TabsTrigger>
+                </TabsList>
+                <TabsContent value="builder" className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
+                  {kvFields.map((field, index) => (
+                    <div key={index} className="flex gap-2 items-end">
+                      <div className="grid gap-1.5 flex-1"><Input placeholder="Key" value={field.key} onChange={(e) => updateField(index, "key", e.target.value)} /></div>
+                      <div className="grid gap-1.5 flex-[2]"><Input placeholder="Value" value={field.value} onChange={(e) => updateField(index, "value", e.target.value)} /></div>
+                      <Button variant="ghost" size="icon" className="text-red-500" onClick={() => removeField(index)} disabled={kvFields.length === 1}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={addField} className="w-full border-dashed"><Plus className="mr-2 h-4 w-4" /> Add Field</Button>
+                </TabsContent>
+                <TabsContent value="json" className="py-4"><Textarea className="font-mono text-sm min-h-[200px]" value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} /></TabsContent>
+              </Tabs>
+              <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleAddRecord} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Insert"}</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* DOCUMENT LIST AREA (Scrollable & Virtualized) */}
+      <div className="flex-1 rounded-md border bg-zinc-50/50 shadow-inner overflow-hidden flex flex-col">
+        {/* Attach Ref to the scroll container */}
+        <div ref={parentRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+          
+          {/* SKELETON LOADING */}
+          {loadingDocs ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="border rounded-md bg-white p-0 shadow-sm overflow-hidden mb-3">
+                <div className="px-4 py-2 border-b bg-zinc-50/50 flex justify-between items-center">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-6 w-16 rounded-md" />
+                </div>
+                <div className="p-3 space-y-2">
+                   <div className="flex gap-2">
+                     <Skeleton className="h-4 w-32" />
+                     <Skeleton className="h-4 w-48" />
+                   </div>
+                   <div className="flex gap-2">
+                     <Skeleton className="h-4 w-20" />
+                     <Skeleton className="h-4 w-32" />
+                   </div>
+                </div>
+              </div>
+            ))
+          ) : pageData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <p>No documents found on this page.</p>
             </div>
+          ) : (
+            // VIRTUALIZED LIST RENDER
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const doc = pageData[virtualRow.index]
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement} // Important: Dynamic height measurement
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: '12px' // Spacer between items
+                    }}
+                  >
+                    <DocumentCard 
+                      data={doc} 
+                      index={((currentPage - 1) * pageSize) + virtualRow.index} 
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        
+        {/* Footer Area */}
+        <div className="flex items-center justify-between px-4 py-3 border-t bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.03)] z-10">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="flex items-center gap-2">
+               <span className="text-xs text-muted-foreground uppercase font-bold">Limit</span>
+               <Select 
+                 value={`${pageSize}`} 
+                 onValueChange={(val) => {
+                   const newSize = Number(val)
+                   setPageSize(newSize)
+                   setCurrentPage(1)
+                   fetchDbPage(1, newSize)
+                 }}
+               >
+                 <SelectTrigger className="h-8 w-[70px] bg-zinc-50 border-zinc-200">
+                   <SelectValue placeholder={pageSize} />
+                 </SelectTrigger>
+                 <SelectContent side="top">
+                   {[10, 20, 50, 100].map((size) => (
+                     <SelectItem key={size} value={`${size}`}>{size}</SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+            </div>
+            <span className="text-sm text-zinc-600 hidden md:inline">
+               Page <strong>{currentPage}</strong>
+            </span>
           </div>
 
           <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const page = table.getState().pagination.pageIndex;
-                if (page > 0) {
-                  table.setPageIndex(page - 1);
-                  fetchDbPage(page, 10);
-                }
-              }}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={currentPage === 1 || loadingDocs}
+              onClick={() => handlePageChange(currentPage - 1)}
             >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+              <ChevronLeft className="h-4 w-4 mr-1" /> Previous
             </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const page = table.getState().pagination.pageIndex + 2;
-                table.setPageIndex(page - 1);
-                fetchDbPage(page, 10);
-              }}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={loadingDocs}
+              onClick={() => handlePageChange(currentPage + 1)}
             >
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
+              Next <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
       </div>
     </main>
-  );
+  )
 }
