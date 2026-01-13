@@ -83,9 +83,10 @@ export function DashboardProvider({ children }) {
   // 4. Add Record to Collection
   const addRecord = useCallback(async (payloadData) => {
     if (!activeCollection) return { success: false, msg: "No active collection" }
+    console.log(`${import.meta.env.VITE_BACKEND_URL}/db/collections/users`)
 
     try {
-      const response = await fetch("/db/collections/add", {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
