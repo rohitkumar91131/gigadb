@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Table, Database, Plus, Search, X } from "lucide-react"
+import { Table, Database, Plus, Search, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -39,7 +39,10 @@ export default function CollectionSidebar() {
     overscan: 5,
   })
 
-  async function handleSubmit() {
+  // Form Submit Handler
+  async function handleSubmit(e) {
+    if (e) e.preventDefault() // Prevent form reload
+    
     if (!collectionName.trim()) return alert("Collection name required")
 
     try {
@@ -153,21 +156,33 @@ export default function CollectionSidebar() {
             <button
               className="absolute right-4 top-4 text-muted-foreground hover:text-black"
               onClick={() => setShowModal(false)}
+              type="button"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <h2 className="text-xl font-semibold mb-2">Create Collection</h2>
+            <h2 className="text-xl font-semibold mb-4">Create Collection</h2>
 
-            <Input
-              placeholder="Collection name"
-              value={collectionName}
-              onChange={e => setCollectionName(e.target.value)}
-            />
+            {/* Wrapped in Form for Enter Key Support */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input
+                placeholder="Collection name (e.g. users)"
+                value={collectionName}
+                onChange={e => setCollectionName(e.target.value)}
+                autoFocus
+                disabled={creating}
+              />
 
-            <Button className="w-full mt-4" onClick={handleSubmit} disabled={creating}>
-              {creating ? "Creating..." : "Create"}
-            </Button>
+              <Button type="submit" className="w-full" disabled={creating}>
+                {creating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...
+                  </>
+                ) : (
+                  "Create Collection"
+                )}
+              </Button>
+            </form>
           </div>
         </div>
       )}

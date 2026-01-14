@@ -1,31 +1,33 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 const DashboardContext = createContext()
 
 export function DashboardProvider({ children }) {
+  const navigate = useNavigate()
+  
   const [activeCollection, setActiveCollection] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [pageData, setPageData] = useState([])
   const [collections, setCollections] = useState([])
+  const [user, setUser] = useState(null)
   
-  // Loading States
   const [loadingCollections, setLoadingCollections] = useState(true)
   const [loadingDocs, setLoadingDocs] = useState(false)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
 
-  // Pagination Config
   const [pageSize, setPageSize] = useState(10)
 
-  // 1. Fetch All Collections
   const fetchCollections = useCallback(async () => {
     try {
       setLoadingCollections(true)
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/collections`, {
         credentials: "include"
       })
       const data = await res.json()
       if (data.success) {
         setCollections(data.collections)
-        // Note: We do NOT auto-select a collection so the Grid View shows first
       }
     } catch (e) {
       console.error(e)
@@ -34,7 +36,30 @@ export function DashboardProvider({ children }) {
     }
   }, [])
 
-  // 2. Fetch Documents (Page Data)
+  const checkAuth = useCallback(async () => {
+    try {
+      setIsAuthLoading(true)
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/auth/me`, {
+        credentials: "include"
+      })
+      
+      const data = await res.json()
+
+      if (data.success) {
+        setUser(data.user)
+        fetchCollections()
+      } else {
+        navigate("/auth/login")
+      }
+    } catch (e) {
+      toast.error("Please login to continue")
+      console.error("Auth verification failed:", e)
+      navigate("/auth/login")
+    } finally {
+      setIsAuthLoading(false)
+    }
+  }, [navigate, fetchCollections]) 
+
   const fetchDbPage = useCallback(async (page = 1, limitOverride = null) => {
     if (!activeCollection) return 
 
@@ -43,24 +68,25 @@ export function DashboardProvider({ children }) {
     try {
       setLoadingDocs(true)
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/db?pageNumber=${page}&pageSize=${limit}`,
+        `${import.meta.env.VITE_BACKEND_URL}/db/${activeCollection.name}?pageNumber=${page}&pageSize=${limit}`,
         { credentials: "include" }
       )
       const data = await res.json()
       if (data.success) {
-        setPageData(data.users)
+        setPageData(data.docs || data.users || []) 
       }
     } catch (e) {
       console.error(e)
+      toast.error("Failed to fetch documents")
     } finally {
       setLoadingDocs(false)
     }
   }, [activeCollection, pageSize])
 
-  // 3. Create New Collection
+  // 4. Create New Collection
   const createCollection = useCallback(async (name) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/collections/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -80,24 +106,22 @@ export function DashboardProvider({ children }) {
     }
   }, [fetchCollections])
 
-  // 4. Add Record to Collection
   const addRecord = useCallback(async (payloadData) => {
     if (!activeCollection) return { success: false, msg: "No active collection" }
-    console.log(`${import.meta.env.VITE_BACKEND_URL}/db/collections/users`)
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/collections/users`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/${activeCollection.name}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          collectionName: activeCollection.name,
           data: payloadData,
         }),
         credentials: "include",
       })
 
       if (response.ok) {
-        await fetchDbPage(1) // Refresh to first page
+        await fetchDbPage(1) 
+        toast.success("Document added successfully")
         return { success: true }
       } else {
         const err = await response.json()
@@ -111,8 +135,8 @@ export function DashboardProvider({ children }) {
 
   // Initial Load
   useEffect(() => {
-    fetchCollections()
-  }, [])
+    checkAuth()
+  }, [checkAuth])
 
   // Search Filter Logic
   const filteredCollections = useMemo(() => {
@@ -136,9 +160,11 @@ export function DashboardProvider({ children }) {
       loadingCollections,
       loadingDocs,
       pageSize,
-      setPageSize
+      setPageSize,
+      user,           
+      isAuthLoading   
     }}>
-      {children}
+      {!isAuthLoading && children}
     </DashboardContext.Provider>
   )
 }

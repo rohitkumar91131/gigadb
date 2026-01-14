@@ -28,7 +28,7 @@ export default function Hero() {
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/auth/signup">
+          <Link to="/dashboard">
             <Button size="lg" className="h-12 px-8 text-lg bg-blue-600 hover:bg-blue-700">
               <Database className="mr-2 h-5 w-5" /> Create Your Database
             </Button>

@@ -9,7 +9,7 @@ export default function Navbar() {
   useEffect(() => {
     const verifyUser = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/login/verify`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/auth/me`, {
           method: "GET",
           credentials: "include",
         });

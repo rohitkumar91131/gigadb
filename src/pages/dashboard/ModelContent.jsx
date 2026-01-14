@@ -2,23 +2,20 @@ import { useMemo, useState, useRef, useEffect } from "react"
 import { 
   FilePlus2, ChevronLeft, ChevronRight, Plus, 
   Trash2, Code, ListPlus, Loader2, Database, ArrowRight,
-  Copy, Pencil, MoreVertical
+  Copy, Pencil
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDashboard } from "@/context/DashboardContext"
-import { useVirtualizer } from "@tanstack/react-virtual" // --- NEW IMPORT ---
+import { useVirtualizer } from "@tanstack/react-virtual" 
+import { toast } from "sonner"
 
 // --- HELPER COMPONENT: JSON Render (Atlas Style) ---
 const JsonValue = ({ value }) => {
@@ -41,11 +38,11 @@ const DocumentCard = ({ data, index }) => {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(JSON.stringify(doc, null, 2))
-    alert("Document copied!")
+    toast("Document copied!")
   }
 
   return (
-    <div className="group relative border rounded-md bg-white hover:border-blue-400 transition-all shadow-sm mb-3"> {/* mb-3 added inside virtual row */}
+    <div className="group relative border rounded-md bg-white hover:border-blue-400 transition-all shadow-sm mb-3">
       <div className="flex items-center justify-between px-4 py-2 border-b bg-zinc-50/50 rounded-t-md">
         <div className="text-xs font-mono text-zinc-500">
           Document #{index + 1}
@@ -87,12 +84,14 @@ export default function CollectionContent() {
     setActiveCollection, 
     fetchDbPage,
     addRecord,
+    createCollection,
     pageSize,
     setPageSize,
     loadingDocs,       
     loadingCollections 
   } = useDashboard()
   
+  // Existing State
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [jsonInput, setJsonInput] = useState("{\n  \n}")
@@ -100,17 +99,20 @@ export default function CollectionContent() {
   const [activeTab, setActiveTab] = useState("builder") 
   const [currentPage, setCurrentPage] = useState(1)
 
+  // New State for inline creation
+  const [newCollectionName, setNewCollectionName] = useState("")
+  const [isCreatingCol, setIsCreatingCol] = useState(false)
+
   // --- VIRTUALIZATION SETUP ---
   const parentRef = useRef(null)
 
   const rowVirtualizer = useVirtualizer({
     count: pageData.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 150, // Default estimate height per card
-    overscan: 5, // Keep 5 items rendered outside viewport for smoothness
+    estimateSize: () => 150,
+    overscan: 5,
   })
 
-  // Reset scroll when page data changes
   useEffect(() => {
     if (parentRef.current) {
       parentRef.current.scrollTo(0, 0)
@@ -153,13 +155,51 @@ export default function CollectionContent() {
     finally { setIsSubmitting(false) }
   }
 
+  // Create Collection Handler
+  const handleInlineCreate = async () => {
+    if (!newCollectionName.trim()) return
+    setIsCreatingCol(true)
+    try {
+      const result = await createCollection(newCollectionName)
+      if (result.success) {
+        setNewCollectionName("")
+        toast.success("Collection created successfully")
+      } else {
+        toast.error(result.msg || "Failed to create")
+      }
+    } catch (e) {
+      toast.error("An unexpected error occurred")
+    } finally {
+      setIsCreatingCol(false)
+    }
+  }
+
   // ==================== VIEW 1: GRID VIEW (No Selection) ====================
   if (!activeCollection) {
     return (
-      <main className="flex flex-1 flex-col gap-6 p-8 bg-muted/20 h-full overflow-y-auto">
+      <main className="flex flex-1 flex-col gap-6 p-6 md:p-8 bg-muted/20 h-full overflow-y-auto">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Select a collection to view or manage its records.</p>
+        </div>
+
+        {/* --- MOBILE ONLY: CREATE COLLECTION FORM (Visible on small screens only) --- */}
+        <div className="md:hidden w-full p-4 border rounded-xl bg-white shadow-sm space-y-3">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+             <Plus className="h-4 w-4 text-blue-600" /> Create New Collection
+          </h3>
+          <div className="flex w-full items-center gap-2">
+            <Input 
+              placeholder="e.g. users, products" 
+              value={newCollectionName}
+              onChange={(e) => setNewCollectionName(e.target.value)}
+              className="bg-zinc-50"
+              onKeyDown={(e) => e.key === 'Enter' && handleInlineCreate()}
+            />
+            <Button onClick={handleInlineCreate} disabled={isCreatingCol} size="sm">
+              {isCreatingCol ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -197,10 +237,14 @@ export default function CollectionContent() {
                   </div>
                 </div>
               ))}
+              
+              {/* --- EMPTY STATE (Shows if no collections exist) --- */}
               {collections.length === 0 && (
-                <div className="col-span-full flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                <div className="col-span-full flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl bg-zinc-50/50">
                   <Database className="h-10 w-10 mb-4 opacity-50" />
                   <p>No collections found.</p>
+                  {/* Note: The form above handles creation on mobile, 
+                      Desktop users use the sidebar. */}
                 </div>
               )}
             </>
@@ -211,10 +255,10 @@ export default function CollectionContent() {
   }
 
   // ==================== VIEW 2: ATLAS-STYLE DOCUMENT LIST ====================
+  // (Same as before...)
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-muted/20 h-full overflow-hidden">
       
-      {/* Top Header Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -227,6 +271,7 @@ export default function CollectionContent() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Mobile Switcher */}
           <div className="md:hidden w-40">
             <Select value={activeCollection?.id || ""} onValueChange={id => { const c = collections.find(x => x.id === id); if(c) setActiveCollection(c) }}>
               <SelectTrigger className="w-full bg-background"><SelectValue placeholder="Collection" /></SelectTrigger>
@@ -261,12 +306,8 @@ export default function CollectionContent() {
         </div>
       </div>
 
-      {/* DOCUMENT LIST AREA (Scrollable & Virtualized) */}
       <div className="flex-1 rounded-md border bg-zinc-50/50 shadow-inner overflow-hidden flex flex-col">
-        {/* Attach Ref to the scroll container */}
         <div ref={parentRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-          
-          {/* SKELETON LOADING */}
           {loadingDocs ? (
             Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="border rounded-md bg-white p-0 shadow-sm overflow-hidden mb-3">
@@ -291,7 +332,6 @@ export default function CollectionContent() {
               <p>No documents found on this page.</p>
             </div>
           ) : (
-            // VIRTUALIZED LIST RENDER
             <div
               style={{
                 height: `${rowVirtualizer.getTotalSize()}px`,
@@ -305,14 +345,14 @@ export default function CollectionContent() {
                   <div
                     key={virtualRow.key}
                     data-index={virtualRow.index}
-                    ref={rowVirtualizer.measureElement} // Important: Dynamic height measurement
+                    ref={rowVirtualizer.measureElement}
                     style={{
                       position: 'absolute',
                       top: 0,
                       left: 0,
                       width: '100%',
                       transform: `translateY(${virtualRow.start}px)`,
-                      paddingBottom: '12px' // Spacer between items
+                      paddingBottom: '12px'
                     }}
                   >
                     <DocumentCard 
@@ -326,7 +366,6 @@ export default function CollectionContent() {
           )}
         </div>
         
-        {/* Footer Area */}
         <div className="flex items-center justify-between px-4 py-3 border-t bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.03)] z-10">
           <div className="flex items-center gap-4 flex-1">
             <div className="flex items-center gap-2">
