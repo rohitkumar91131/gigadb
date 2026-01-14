@@ -48,7 +48,7 @@ export default function LoginPage() {
     }
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/login`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

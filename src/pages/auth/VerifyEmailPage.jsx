@@ -23,14 +23,17 @@ export default function VerifyEmailPage() {
 
       try {
         const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+        console.log("Verifying token with backend URL:", `${backendUrl}/sys/auth/verify-email   `);
         
-        const response = await fetch(`${backendUrl}/auth/verify-email`, {
+        const response = await fetch(`${backendUrl}/sys/auth/verify-email`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
+          "credentials": "include"
         });
 
         const data = await response.json();
+        console.log("Verification response data:", data);
 
         if (data.success) {
           setStatus("success");
