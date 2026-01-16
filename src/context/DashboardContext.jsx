@@ -58,22 +58,23 @@ export function DashboardProvider({ children }) {
     } finally {
       setIsAuthLoading(false)
     }
-  }, [navigate, fetchCollections]) 
+  }, [navigate, fetchCollections])
 
   const fetchDbPage = useCallback(async (page = 1, limitOverride = null) => {
-    if (!activeCollection) return 
+    if (!activeCollection) return
 
     const limit = limitOverride || pageSize
     
     try {
       setLoadingDocs(true)
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/db/${activeCollection.name}?pageNumber=${page}&pageSize=${limit}`,
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections?collectionName=${activeCollection.name}&pageNumber=${page}&pageLimit=${limit}`,
         { credentials: "include" }
       )
       const data = await res.json()
+
       if (data.success) {
-        setPageData(data.docs || data.users || []) 
+        setPageData(data.data || [])
       }
     } catch (e) {
       console.error(e)
@@ -83,7 +84,6 @@ export function DashboardProvider({ children }) {
     }
   }, [activeCollection, pageSize])
 
-  // 4. Create New Collection
   const createCollection = useCallback(async (name) => {
     try {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/collections/create`, {
@@ -95,7 +95,7 @@ export function DashboardProvider({ children }) {
 
       const data = await res.json()
       if (data.success) {
-        await fetchCollections() 
+        await fetchCollections()
         return { success: true }
       } else {
         return { success: false, msg: data.msg }
@@ -110,35 +110,66 @@ export function DashboardProvider({ children }) {
     if (!activeCollection) return { success: false, msg: "No active collection" }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/db/${activeCollection.name}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: payloadData,
-        }),
-        credentials: "include",
-      })
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections/insert?collectionName=${activeCollection.name}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: payloadData }),
+          credentials: "include",
+        }
+      )
 
-      if (response.ok) {
-        await fetchDbPage(1) 
-        toast.success("Document added successfully")
-        return { success: true }
-      } else {
-        const err = await response.json()
-        return { success: false, msg: err.message || "Unknown error" }
+      const result = await response.json()
+
+      if (!response.ok) {
+        return { success: false, msg: result.msg || "Unknown error" }
       }
+
+      await fetchDbPage(1)
+      toast.success("Document added successfully")
+
+      return { success: true, data: result.data }
     } catch (error) {
       console.error("Submission error", error)
       return { success: false, msg: "Something went wrong." }
     }
   }, [activeCollection, fetchDbPage])
 
-  // Initial Load
+  const seedCollection = useCallback(async (count) => {
+    if (!activeCollection) {
+      return { success: false, msg: "No active collection" }
+    }
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections/seed?collectionName=${activeCollection.name}&count=${count}`,
+        {
+          method: "POST",
+          credentials: "include"
+        }
+      )
+
+      const data = await res.json()
+
+      if (!data.success) {
+        return { success: false, msg: data.msg || "Seed failed" }
+      }
+
+      await fetchDbPage(1)
+      toast.success(`Seeded ${count} documents`)
+
+      return { success: true }
+    } catch (e) {
+      console.error(e)
+      return { success: false, msg: "Seeding error" }
+    }
+  }, [activeCollection, fetchDbPage])
+
   useEffect(() => {
     checkAuth()
   }, [checkAuth])
 
-  // Search Filter Logic
   const filteredCollections = useMemo(() => {
     return collections.filter(c =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -157,12 +188,13 @@ export function DashboardProvider({ children }) {
       fetchCollections,
       createCollection,
       addRecord,
+      seedCollection,
       loadingCollections,
       loadingDocs,
       pageSize,
       setPageSize,
-      user,           
-      isAuthLoading   
+      user,
+      isAuthLoading
     }}>
       {!isAuthLoading && children}
     </DashboardContext.Provider>

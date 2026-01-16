@@ -69,7 +69,7 @@ export default function CollectionSidebar() {
           <div>
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               <Database className="h-4 w-4 text-blue-600" />
-              Cluster-01
+              Cluster
             </h2>
             <p className="text-sm text-muted-foreground">Production Database</p>
           </div>
