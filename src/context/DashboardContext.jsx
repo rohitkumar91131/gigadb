@@ -6,18 +6,26 @@ const DashboardContext = createContext()
 
 export function DashboardProvider({ children }) {
   const navigate = useNavigate()
-  
+
   const [activeCollection, setActiveCollection] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [pageData, setPageData] = useState([])
   const [collections, setCollections] = useState([])
   const [user, setUser] = useState(null)
-  
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
   const [loadingCollections, setLoadingCollections] = useState(true)
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
 
-  const [pageSize, setPageSize] = useState(10)
+  useEffect(() => {
+    if (activeCollection) {
+      setCurrentPage(1)
+      setPageData([])
+    }
+  }, [activeCollection])
 
   const fetchCollections = useCallback(async () => {
     try {
@@ -29,8 +37,6 @@ export function DashboardProvider({ children }) {
       if (data.success) {
         setCollections(data.collections)
       }
-    } catch (e) {
-      console.error(e)
     } finally {
       setLoadingCollections(false)
     }
@@ -42,7 +48,6 @@ export function DashboardProvider({ children }) {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sys/auth/me`, {
         credentials: "include"
       })
-      
       const data = await res.json()
 
       if (data.success) {
@@ -51,38 +56,37 @@ export function DashboardProvider({ children }) {
       } else {
         navigate("/auth/login")
       }
-    } catch (e) {
-      toast.error("Please login to continue")
-      console.error("Auth verification failed:", e)
+    } catch {
       navigate("/auth/login")
     } finally {
       setIsAuthLoading(false)
     }
   }, [navigate, fetchCollections])
 
-  const fetchDbPage = useCallback(async (page = 1, limitOverride = null) => {
-    if (!activeCollection) return
+  const fetchDbPage = useCallback(async (page = currentPage) => {
+    if (!activeCollection) return []
 
-    const limit = limitOverride || pageSize
-    
     try {
       setLoadingDocs(true)
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/db/collections?collectionName=${activeCollection.name}&pageNumber=${page}&pageLimit=${limit}`,
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections?collectionName=${activeCollection.name}&pageNumber=${page}&pageLimit=${pageSize}`,
         { credentials: "include" }
       )
       const data = await res.json()
 
       if (data.success) {
+        setCurrentPage(page)
         setPageData(data.data || [])
+        return data.data || []
       }
-    } catch (e) {
-      console.error(e)
-      toast.error("Failed to fetch documents")
+      return []
+    } catch {
+      toast.error("Fetch failed")
+      return []
     } finally {
       setLoadingDocs(false)
     }
-  }, [activeCollection, pageSize])
+  }, [activeCollection, pageSize, currentPage])
 
   const createCollection = useCallback(async (name) => {
     try {
@@ -92,79 +96,89 @@ export function DashboardProvider({ children }) {
         credentials: "include",
         body: JSON.stringify({ name })
       })
-
       const data = await res.json()
       if (data.success) {
-        await fetchCollections()
+        fetchCollections()
         return { success: true }
-      } else {
-        return { success: false, msg: data.msg }
       }
-    } catch (e) {
-      console.error(e)
-      return { success: false, msg: "Network error" }
+      return { success: false, msg: data.msg }
+    } catch {
+      return { success: false }
     }
   }, [fetchCollections])
 
   const addRecord = useCallback(async (payloadData) => {
-    if (!activeCollection) return { success: false, msg: "No active collection" }
+    if (!activeCollection) return { success: false }
 
     try {
-      const response = await fetch(
+      const res = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/db/collections/insert?collectionName=${activeCollection.name}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: payloadData }),
           credentials: "include",
+          body: JSON.stringify({ data: payloadData })
         }
       )
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        return { success: false, msg: result.msg || "Unknown error" }
-      }
+      const data = await res.json()
+      if (!data.success) return { success: false }
 
       await fetchDbPage(1)
-      toast.success("Document added successfully")
-
-      return { success: true, data: result.data }
-    } catch (error) {
-      console.error("Submission error", error)
-      return { success: false, msg: "Something went wrong." }
+      toast.success("Inserted")
+      return { success: true }
+    } catch {
+      return { success: false }
     }
   }, [activeCollection, fetchDbPage])
 
   const seedCollection = useCallback(async (count) => {
-    if (!activeCollection) {
-      return { success: false, msg: "No active collection" }
-    }
+    if (!activeCollection) return { success: false }
 
     try {
       const res = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/db/collections/seed?collectionName=${activeCollection.name}&count=${count}`,
-        {
-          method: "POST",
-          credentials: "include"
-        }
+        { method: "POST", credentials: "include" }
       )
-
       const data = await res.json()
-
-      if (!data.success) {
-        return { success: false, msg: data.msg || "Seed failed" }
-      }
+      if (!data.success) return { success: false }
 
       await fetchDbPage(1)
-      toast.success(`Seeded ${count} documents`)
-
+      toast.success("Seeded")
       return { success: true }
-    } catch (e) {
-      console.error(e)
-      return { success: false, msg: "Seeding error" }
+    } catch {
+      return { success: false }
     }
   }, [activeCollection, fetchDbPage])
+
+  const deleteRecord = useCallback(async (collectionId) => {
+    if (!activeCollection) return { success: false }
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections?collectionName=${activeCollection.name}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ collectionId })
+        }
+      )
+      const data = await res.json()
+      if (!data.success) return { success: false }
+
+      const list = await fetchDbPage(currentPage)
+
+      if (list.length === 0 && currentPage > 1) {
+        await fetchDbPage(currentPage - 1)
+      }
+
+      toast.success("Deleted")
+      return { success: true }
+    } catch {
+      toast.error("Delete failed")
+      return { success: false }
+    }
+  }, [activeCollection, currentPage, fetchDbPage])
 
   useEffect(() => {
     checkAuth()
@@ -188,13 +202,16 @@ export function DashboardProvider({ children }) {
       fetchCollections,
       createCollection,
       addRecord,
+      deleteRecord,
       seedCollection,
       loadingCollections,
       loadingDocs,
       pageSize,
       setPageSize,
       user,
-      isAuthLoading
+      isAuthLoading,
+      currentPage,
+      setCurrentPage
     }}>
       {!isAuthLoading && children}
     </DashboardContext.Provider>

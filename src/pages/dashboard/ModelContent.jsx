@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from "react"
 import { 
   FilePlus2, ChevronLeft, ChevronRight, Plus, 
   Trash2, Code, ListPlus, Loader2, Database, ArrowRight,
-  Copy, Pencil, Sprout // <--- ADDED Sprout Icon
+  Copy, Pencil, Sprout 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +17,6 @@ import { useDashboard } from "@/context/DashboardContext"
 import { useVirtualizer } from "@tanstack/react-virtual" 
 import { toast } from "sonner"
 
-// ... (JsonValue and DocumentCard components remain exactly the same) ...
 const JsonValue = ({ value }) => {
   if (value === null) return <span className="text-zinc-400 italic">null</span>
   if (typeof value === "boolean") return <span className="text-yellow-600 font-bold">{value.toString()}</span>
@@ -28,7 +27,7 @@ const JsonValue = ({ value }) => {
   return <span>{String(value)}</span>
 }
 
-const DocumentCard = ({ data, index }) => {
+const DocumentCard = ({ data, index, onDelete }) => {
   let doc = data
   try {
     if (typeof data === "string") doc = JSON.parse(data)
@@ -54,7 +53,13 @@ const DocumentCard = ({ data, index }) => {
           <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit">
             <Pencil className="h-3 w-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-600" title="Delete">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6 text-red-500 hover:text-red-600" 
+            title="Delete"
+            onClick={onDelete}
+          >
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
@@ -85,31 +90,32 @@ export default function CollectionContent() {
     fetchDbPage,
     addRecord,
     createCollection,
-    seedCollection, // <--- ADDED THIS
+    seedCollection,
+    deleteRecord, 
     pageSize,
     setPageSize,
     loadingDocs,       
-    loadingCollections 
+    loadingCollections,
+    // --- NEW: Using Context State for Page ---
+    currentPage,
+    setCurrentPage
   } = useDashboard()
   
-  // Existing State
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [jsonInput, setJsonInput] = useState("{\n  \n}")
   const [kvFields, setKvFields] = useState([{ key: "", value: "" }])
   const [activeTab, setActiveTab] = useState("builder") 
-  const [currentPage, setCurrentPage] = useState(1)
+  
+  // REMOVED: const [currentPage, setCurrentPage] = useState(1) // Now coming from Context
 
-  // New State for inline creation
   const [newCollectionName, setNewCollectionName] = useState("")
   const [isCreatingCol, setIsCreatingCol] = useState(false)
 
-  // --- NEW STATES FOR SEEDING ---
   const [isSeedDialogOpen, setIsSeedDialogOpen] = useState(false)
   const [seedCount, setSeedCount] = useState(10)
   const [isSeeding, setIsSeeding] = useState(false)
 
-  // --- VIRTUALIZATION SETUP ---
   const parentRef = useRef(null)
 
   const rowVirtualizer = useVirtualizer({
@@ -125,11 +131,11 @@ export default function CollectionContent() {
     }
   }, [pageData])
 
-  // --- Handlers ---
   const handlePageChange = (newPage) => {
     if (newPage < 1) return
-    setCurrentPage(newPage)
-    fetchDbPage(newPage)
+    // Setting state happens inside fetchDbPage now, but we can call it here or inside
+    // fetchDbPage calls setCurrentPage internally in the updated Provider
+    fetchDbPage(newPage) 
   }
 
   const addField = () => setKvFields([...kvFields, { key: "", value: "" }])
@@ -161,7 +167,6 @@ export default function CollectionContent() {
     finally { setIsSubmitting(false) }
   }
 
-  // Create Collection Handler
   const handleInlineCreate = async () => {
     if (!newCollectionName.trim()) return
     setIsCreatingCol(true)
@@ -180,7 +185,6 @@ export default function CollectionContent() {
     }
   }
 
-  // --- NEW HANDLER: SEED DATA ---
   const handleSeed = async () => {
     if(!seedCount || seedCount < 1) return
     setIsSeeding(true)
@@ -194,9 +198,31 @@ export default function CollectionContent() {
     }
   }
 
-  // ==================== VIEW 1: GRID VIEW (No Selection) ====================
+  const handleDeleteRecord = async (rawDoc) => {
+    let doc = rawDoc;
+    if (typeof rawDoc === "string") {
+      try {
+        doc = JSON.parse(rawDoc);
+      } catch (e) {
+        toast.error("Error: Could not parse document data.");
+        return;
+      }
+    }
+
+    const docId = doc._id || doc.id;
+    
+    if (!docId) {
+      console.error("Failed to find ID in document:", doc);
+      toast.error("Cannot delete: Document has no '_id' or 'id' field.");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to delete this document? This cannot be undone.")) {
+      await deleteRecord(docId);
+    }
+  }
+
   if (!activeCollection) {
-    // ... (This section remains exactly the same as your code) ...
     return (
       <main className="flex flex-1 flex-col gap-6 p-6 md:p-8 bg-muted/20 h-full overflow-y-auto">
         <div className="flex flex-col gap-2">
@@ -270,7 +296,6 @@ export default function CollectionContent() {
     )
   }
 
-  // ==================== VIEW 2: ATLAS-STYLE DOCUMENT LIST ====================
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-muted/20 h-full overflow-hidden">
       
@@ -294,7 +319,6 @@ export default function CollectionContent() {
             </Select>
           </div>
           
-          {/* --- NEW SEED DIALOG --- */}
           <Dialog open={isSeedDialogOpen} onOpenChange={setIsSeedDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="hidden sm:flex border-blue-200 text-blue-700 hover:bg-blue-50">
@@ -328,7 +352,6 @@ export default function CollectionContent() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          {/* ----------------------- */}
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild><Button className="bg-blue-600 hover:bg-blue-700"><FilePlus2 className="mr-2 h-4 w-4" /> Insert Document</Button></DialogTrigger>
@@ -358,7 +381,6 @@ export default function CollectionContent() {
       </div>
 
       <div className="flex-1 rounded-md border bg-zinc-50/50 shadow-inner overflow-hidden flex flex-col">
-        {/* ... (The rest of the list rendering and pagination remains exactly the same) ... */}
         <div ref={parentRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {loadingDocs ? (
             Array.from({ length: 6 }).map((_, i) => (
@@ -410,6 +432,7 @@ export default function CollectionContent() {
                     <DocumentCard 
                       data={doc} 
                       index={((currentPage - 1) * pageSize) + virtualRow.index} 
+                      onDelete={() => handleDeleteRecord(doc)}
                     />
                   </div>
                 )
@@ -427,7 +450,8 @@ export default function CollectionContent() {
                  onValueChange={(val) => {
                    const newSize = Number(val)
                    setPageSize(newSize)
-                   setCurrentPage(1)
+                   // We don't need to manually set currentPage to 1 here because
+                   // fetchDbPage(1) will do it.
                    fetchDbPage(1, newSize)
                  }}
                >
