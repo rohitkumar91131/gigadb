@@ -63,7 +63,7 @@ export function DashboardProvider({ children }) {
     }
   }, [navigate, fetchCollections])
 
-  const fetchDbPage = useCallback(async (page = currentPage) => {
+  const fetchDbPage = useCallback(async (page = 1) => {
     if (!activeCollection) return []
 
     try {
@@ -86,7 +86,13 @@ export function DashboardProvider({ children }) {
     } finally {
       setLoadingDocs(false)
     }
-  }, [activeCollection, pageSize, currentPage])
+  }, [activeCollection, pageSize])
+
+  useEffect(() => {
+    if (activeCollection) {
+      fetchDbPage(1)
+    }
+  }, [pageSize, activeCollection, fetchDbPage])
 
   const createCollection = useCallback(async (name) => {
     try {
@@ -112,7 +118,7 @@ export function DashboardProvider({ children }) {
 
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/db/collections/insert?collectionName=${activeCollection.name}`,
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections?collectionName=${activeCollection.name}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -130,6 +136,31 @@ export function DashboardProvider({ children }) {
       return { success: false }
     }
   }, [activeCollection, fetchDbPage])
+
+  const updateRecord = useCallback(async (collectionId, updatedData) => {
+    if (!activeCollection) return { success: false }
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/db/collections?collectionName=${activeCollection.name}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ collectionId, updatedData })
+        }
+      )
+      const data = await res.json()
+      if (!data.success) return { success: false }
+
+      await fetchDbPage(currentPage)
+      toast.success("Updated")
+      return { success: true }
+    } catch {
+      toast.error("Update failed")
+      return { success: false }
+    }
+  }, [activeCollection, currentPage, fetchDbPage])
 
   const seedCollection = useCallback(async (count) => {
     if (!activeCollection) return { success: false }
@@ -202,6 +233,7 @@ export function DashboardProvider({ children }) {
       fetchCollections,
       createCollection,
       addRecord,
+      updateRecord,
       deleteRecord,
       seedCollection,
       loadingCollections,

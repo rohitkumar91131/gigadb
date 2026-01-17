@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from "react"
 import { 
   FilePlus2, ChevronLeft, ChevronRight, Plus, 
   Trash2, Code, ListPlus, Loader2, Database, ArrowRight,
-  Copy, Pencil, Sprout 
+  Copy, Pencil, Sprout, Save 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,7 +27,7 @@ const JsonValue = ({ value }) => {
   return <span>{String(value)}</span>
 }
 
-const DocumentCard = ({ data, index, onDelete }) => {
+const DocumentCard = ({ data, index, onDelete, onEdit }) => {
   let doc = data
   try {
     if (typeof data === "string") doc = JSON.parse(data)
@@ -50,7 +50,7 @@ const DocumentCard = ({ data, index, onDelete }) => {
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyToClipboard} title="Copy JSON">
             <Copy className="h-3 w-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit">
+          <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit" onClick={onEdit}>
             <Pencil className="h-3 w-3" />
           </Button>
           <Button 
@@ -89,6 +89,7 @@ export default function CollectionContent() {
     setActiveCollection, 
     fetchDbPage,
     addRecord,
+    updateRecord, 
     createCollection,
     seedCollection,
     deleteRecord, 
@@ -96,7 +97,6 @@ export default function CollectionContent() {
     setPageSize,
     loadingDocs,       
     loadingCollections,
-    // --- NEW: Using Context State for Page ---
     currentPage,
     setCurrentPage
   } = useDashboard()
@@ -107,14 +107,17 @@ export default function CollectionContent() {
   const [kvFields, setKvFields] = useState([{ key: "", value: "" }])
   const [activeTab, setActiveTab] = useState("builder") 
   
-  // REMOVED: const [currentPage, setCurrentPage] = useState(1) // Now coming from Context
-
   const [newCollectionName, setNewCollectionName] = useState("")
   const [isCreatingCol, setIsCreatingCol] = useState(false)
 
   const [isSeedDialogOpen, setIsSeedDialogOpen] = useState(false)
   const [seedCount, setSeedCount] = useState(10)
   const [isSeeding, setIsSeeding] = useState(false)
+
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editingDoc, setEditingDoc] = useState(null)
+  const [editJson, setEditJson] = useState("")
+  const [isUpdating, setIsUpdating] = useState(false)
 
   const parentRef = useRef(null)
 
@@ -133,8 +136,6 @@ export default function CollectionContent() {
 
   const handlePageChange = (newPage) => {
     if (newPage < 1) return
-    // Setting state happens inside fetchDbPage now, but we can call it here or inside
-    // fetchDbPage calls setCurrentPage internally in the updated Provider
     fetchDbPage(newPage) 
   }
 
@@ -201,24 +202,68 @@ export default function CollectionContent() {
   const handleDeleteRecord = async (rawDoc) => {
     let doc = rawDoc;
     if (typeof rawDoc === "string") {
-      try {
-        doc = JSON.parse(rawDoc);
-      } catch (e) {
-        toast.error("Error: Could not parse document data.");
-        return;
-      }
+      try { doc = JSON.parse(rawDoc); } catch (e) { toast.error("Error: Could not parse document data."); return; }
     }
-
     const docId = doc._id || doc.id;
-    
-    if (!docId) {
-      console.error("Failed to find ID in document:", doc);
-      toast.error("Cannot delete: Document has no '_id' or 'id' field.");
-      return;
-    }
+    if (!docId) { toast.error("Cannot delete: Document has no '_id' or 'id' field."); return; }
 
     if (window.confirm("Are you sure you want to delete this document? This cannot be undone.")) {
       await deleteRecord(docId);
+    }
+  }
+
+  const handleEditClick = (rawDoc) => {
+    let doc = rawDoc
+    if (typeof rawDoc === "string") {
+      try { doc = JSON.parse(rawDoc) } catch (e) { return }
+    }
+    
+    // Store full doc to keep track of ID
+    setEditingDoc(doc)
+    
+    // Create a copy WITHOUT the ID for the text area
+    // This way user sees and edits everything EXCEPT the ID
+    const { _id, id, ...rest } = doc
+    
+    setEditJson(JSON.stringify(rest, null, 2))
+    setIsEditOpen(true)
+  }
+
+  const handleUpdateSubmit = async () => {
+    if (!editingDoc) return
+    setIsUpdating(true)
+    
+    try {
+      // Validate JSON
+      let updatedData = {}
+      try {
+        updatedData = JSON.parse(editJson)
+      } catch (e) {
+        toast.error("Invalid JSON format")
+        setIsUpdating(false)
+        return
+      }
+
+      const docId = editingDoc._id || editingDoc.id
+      if (!docId) {
+        toast.error("Original document ID not found")
+        setIsUpdating(false)
+        return
+      }
+
+      // Ensure ID is not in the payload (in case user manually added it back to JSON)
+      delete updatedData._id
+      delete updatedData.id
+
+      const result = await updateRecord(docId, updatedData)
+      if (result.success) {
+        setIsEditOpen(false)
+        setEditingDoc(null)
+      }
+    } catch (e) {
+      toast.error("An error occurred during update")
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -433,6 +478,7 @@ export default function CollectionContent() {
                       data={doc} 
                       index={((currentPage - 1) * pageSize) + virtualRow.index} 
                       onDelete={() => handleDeleteRecord(doc)}
+                      onEdit={() => handleEditClick(doc)}
                     />
                   </div>
                 )
@@ -450,8 +496,6 @@ export default function CollectionContent() {
                  onValueChange={(val) => {
                    const newSize = Number(val)
                    setPageSize(newSize)
-                   // We don't need to manually set currentPage to 1 here because
-                   // fetchDbPage(1) will do it.
                    fetchDbPage(1, newSize)
                  }}
                >
@@ -490,6 +534,44 @@ export default function CollectionContent() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+            <DialogDescription>
+              Modify document fields below. ID cannot be changed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="space-y-1.5">
+               <label className="text-xs font-semibold text-zinc-500 uppercase">Document ID (Read Only)</label>
+               <Input 
+                 value={editingDoc?._id || editingDoc?.id || "N/A"} 
+                 disabled 
+                 className="bg-zinc-100 text-zinc-500 cursor-not-allowed font-mono text-sm"
+               />
+            </div>
+            <div className="space-y-1.5">
+               <label className="text-xs font-semibold text-zinc-500 uppercase">JSON Body</label>
+               <Textarea 
+                 className="font-mono text-sm min-h-[300px]" 
+                 value={editJson} 
+                 onChange={(e) => setEditJson(e.target.value)} 
+               />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateSubmit} disabled={isUpdating}>
+              {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <>
+                <Save className="mr-2 h-4 w-4" /> Save Changes
+              </>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </main>
   )
 }
