@@ -1,7 +1,10 @@
 import React, { useState } from "react";
 import { Menu, X, Copy, Check, ChevronRight, Database, Key, Shield } from "lucide-react";
 
-// --- Configuration Data (Content) ---
+// --- Configuration: Environment Variable ---
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "https://api.gigadb.com";
+
+// --- Configuration Data ---
 const apiDocsData = [
   {
     id: "auth",
@@ -25,18 +28,18 @@ const apiDocsData = [
       {
         title: "Create API Key",
         method: "POST",
-        path: "/api/keys",
+        path: `${BASE_URL}/api/keys`,
         body: '{\n  "name": "my-api-key"\n}',
       },
       {
         title: "List API Keys",
         method: "GET",
-        path: "/api/keys?page=1&limit=10",
+        path: `${BASE_URL}/api/keys?page=1&limit=10`,
       },
       {
         title: "Revoke API Key",
         method: "POST",
-        path: "/api/keys/revoke",
+        path: `${BASE_URL}/api/keys/revoke`,
         body: '{\n  "apiKeyId": "key_id"\n}',
       },
     ],
@@ -49,24 +52,24 @@ const apiDocsData = [
       {
         title: "Get Documents",
         method: "GET",
-        path: "/api/v1/db/collections?collectionName=users",
+        path: `${BASE_URL}/api/v1/db/collections?collectionName=users`,
       },
       {
         title: "Insert Document",
         method: "POST",
-        path: "/api/v1/db/collections?collectionName=users",
+        path: `${BASE_URL}/api/v1/db/collections?collectionName=users`,
         body: '{\n  "data": {\n    "name": "John",\n    "age": 25\n  }\n}',
       },
       {
         title: "Update Document",
         method: "PUT",
-        path: "/api/v1/db/collections?collectionName=users",
+        path: `${BASE_URL}/api/v1/db/collections?collectionName=users`,
         body: '{\n  "collectionId": "doc_id",\n  "updatedData": {\n    "age": 26\n  }\n}',
       },
       {
         title: "Delete Document",
         method: "DELETE",
-        path: "/api/v1/db/collections?collectionName=users",
+        path: `${BASE_URL}/api/v1/db/collections?collectionName=users`,
         body: '{\n  "collectionId": "doc_id"\n}',
       },
     ],
@@ -74,6 +77,31 @@ const apiDocsData = [
 ];
 
 // --- Helper Components ---
+
+// 1. Reusable Copy Button Logic
+const CopyButton = ({ text, className = "" }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`p-1.5 rounded transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+        copied 
+          ? "bg-green-100 text-green-600" 
+          : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+      } ${className}`}
+      title="Copy to clipboard"
+    >
+      {copied ? <Check size={16} /> : <Copy size={16} />}
+    </button>
+  );
+};
 
 const MethodBadge = ({ method }) => {
   const colors = {
@@ -83,33 +111,22 @@ const MethodBadge = ({ method }) => {
     DELETE: "bg-red-100 text-red-700 border-red-200",
   };
   return (
-    <span className={`px-2 py-1 rounded text-xs font-bold border ${colors[method] || "bg-gray-100"}`}>
+    <span className={`px-2 py-1 rounded text-xs font-bold border flex-shrink-0 ${colors[method] || "bg-gray-100"}`}>
       {method}
     </span>
   );
 };
 
 const CodeBlock = ({ code }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="relative group mt-2 mb-4">
-      <pre className="bg-slate-900 text-slate-50 p-4 rounded-lg text-sm overflow-x-auto font-mono leading-relaxed border border-slate-700 shadow-sm">
+      <pre className="bg-slate-900 text-slate-50 p-4 rounded-lg text-sm overflow-x-auto font-mono leading-relaxed border border-slate-700 shadow-sm pr-12">
         {code}
       </pre>
-      <button
-        onClick={handleCopy}
-        className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-400 rounded hover:text-white hover:bg-slate-700 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-        title="Copy to clipboard"
-      >
-        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-      </button>
+      {/* Absolute positioned Copy Button for Code Blocks */}
+      <div className="absolute top-2 right-2">
+        <CopyButton text={code} className="bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white" />
+      </div>
     </div>
   );
 };
@@ -118,7 +135,6 @@ const CodeBlock = ({ code }) => {
 
 export default function Docs() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   return (
@@ -160,7 +176,7 @@ export default function Docs() {
       <main className="flex-1 p-6 md:p-12 max-w-5xl mx-auto w-full">
         <div className="space-y-16">
           
-          {/* Header Section */}
+          {/* Header */}
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 mb-4">Documentation</h1>
             <p className="text-lg text-slate-600">
@@ -182,7 +198,7 @@ export default function Docs() {
               
               {section.description && <p className="mb-6 text-slate-600 leading-relaxed">{section.description}</p>}
 
-              {/* Render Static Content Blocks */}
+              {/* Static Content (Headers etc) */}
               {section.content?.map((item, idx) => (
                 <div key={idx} className="mb-6">
                   {item.label && <span className="text-sm font-semibold text-slate-500 mb-1 block">{item.label}</span>}
@@ -190,15 +206,20 @@ export default function Docs() {
                 </div>
               ))}
 
-              {/* Render Endpoints */}
+              {/* Endpoints List */}
               <div className="space-y-8">
                 {section.endpoints?.map((ep, idx) => (
                   <div key={idx} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                      <h3 className="text-lg font-semibold text-slate-800">{ep.title}</h3>
-                      <div className="flex items-center gap-2 font-mono text-sm bg-slate-50 px-3 py-2 rounded border border-slate-100 w-full md:w-auto overflow-x-auto">
+                      <h3 className="text-lg font-semibold text-slate-800 w-48 flex-shrink-0">{ep.title}</h3>
+                      
+                      {/* URL Path Bar with Copy Button */}
+                      <div className="flex items-center gap-2 font-mono text-sm bg-slate-50 px-3 py-2 rounded border border-slate-100 w-full overflow-hidden">
                         <MethodBadge method={ep.method} />
-                        <span className="text-slate-600 whitespace-nowrap">{ep.path}</span>
+                        <span className="text-slate-600 truncate flex-1" title={ep.path}>{ep.path}</span>
+                        <div className="flex-shrink-0 border-l border-slate-200 pl-2 ml-1">
+                            <CopyButton text={ep.path} />
+                        </div>
                       </div>
                     </div>
 
