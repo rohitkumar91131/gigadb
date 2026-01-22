@@ -34,6 +34,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4 md:px-8">
         
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2 font-bold text-xl">
           <img 
             src="/logo.png" 
@@ -43,9 +44,27 @@ export default function Navbar() {
           <span>GigaDB</span>
         </Link>
 
-        {/* Navigation Actions */}
+        {/* Right Side: Links + Buttons */}
         <div className="flex items-center gap-4">
           
+          {/* --- NEW: Docs & API Links --- */}
+          {/* hidden md:flex ensures they hide on mobile so the navbar doesn't break */}
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium mr-2">
+            <Link 
+              to="/docs" 
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Docs
+            </Link>
+            <Link 
+              to="/api-keys" 
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              API
+            </Link>
+          </div>
+          {/* ----------------------------- */}
+
           {isLoggedIn ? (
             // --- AGAR LOGIN HAI TO YE DIKHEGA ---
             <Link to="/dashboard">

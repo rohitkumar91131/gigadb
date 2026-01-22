@@ -8,12 +8,14 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Dashboard from "./pages/Dashboard"; 
 import { Toaster } from "sonner";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
+import ApiPageWrapper from "./pages/api/ApiPageWrapper";
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path= "/dashboard" element={<Dashboard />} />
+      <Route path= "/api-keys" element = { <ApiPageWrapper/>} />
 
       <Route path="/privacy" element={<PrivacyPolicy />} />
 

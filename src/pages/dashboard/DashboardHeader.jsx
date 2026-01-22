@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom"
-import { Bell, Settings, LogOut, User } from "lucide-react" // User icon import kiya
+import { Bell, Settings, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -34,14 +34,35 @@ export default function DashboardHeader() {
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-16 items-center px-4 md:px-6 gap-4">
         
+        {/* Left: Logo */}
         <Link to="/" className="flex items-center gap-2 font-bold text-xl mr-4">
           <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
           <span className="hidden md:block">GigaDB</span>
         </Link>
 
+        {/* Center: Spacer (Pushes everything to the right) */}
         <div className="flex-1"></div>
 
-        <div className="ml-auto flex items-center gap-2">
+        {/* Right: Navigation & Actions */}
+        <div className="flex items-center gap-4">
+          
+          {/* --- NEW: Links added here (Right side) --- */}
+          <nav className="flex items-center gap-4 md:gap-6 text-sm font-medium mr-2">
+            <Link 
+              to="/docs" 
+              className="transition-colors hover:text-foreground text-muted-foreground"
+            >
+              Docs
+            </Link>
+            <Link 
+              to="/api" 
+              className="transition-colors hover:text-foreground text-muted-foreground"
+            >
+              API
+            </Link>
+          </nav>
+          {/* ------------------------------------------- */}
+
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5" />
           </Button>
@@ -51,7 +72,6 @@ export default function DashboardHeader() {
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src="/avatar-placeholder.png" alt="@rohit" />
-                  {/* Yahan RK ko User icon se replace kiya */}
                   <AvatarFallback className="bg-muted">
                     <User className="h-4 w-4 text-muted-foreground" />
                   </AvatarFallback>
