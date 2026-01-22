@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import { Toaster } from "sonner";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
 import ApiPageWrapper from "./pages/api/ApiPageWrapper";
+import Docs from "./pages/Docs/Docs";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path= "/dashboard" element={<Dashboard />} />
       <Route path= "/api-keys" element = { <ApiPageWrapper/>} />
+      <Route path = "/docs" element = { <Docs />} />
 
       <Route path="/privacy" element={<PrivacyPolicy />} />
 
